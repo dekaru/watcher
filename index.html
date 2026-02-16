@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Movie Swipe</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    body { margin: 0; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    const { useState } = React;
+
+    const DEFAULT_MOVIES = [
+      { title: "I'm Thinking of Ending Things", youtube: "https://www.youtube.com/watch?v=cDTg62vsV4U" },
+      { title: "Last Night on Earth", youtube: "https://www.youtube.com/watch?v=vF1eFFxfuWE" },
+      { title: "Exhuma", youtube: "https://www.youtube.com/watch?v=S6b9wWLc7os" },
+      { title: "Superdeep", youtube: "https://www.youtube.com/watch?v=fx4EdYi5hZ4" },
+      { title: "Colossal", youtube: "https://www.youtube.com/watch?v=fqcZtz8VXXE" },
+      { title: "The Day the Earth Stood Still", youtube: "https://www.youtube.com/watch?v=abTYs6s1pdI" },
+      { title: "Arctic Void", youtube: "https://www.youtube.com/watch?v=lRfDvHOIqlE" },
+      { title: "The Fix", youtube: "https://www.youtube.com/watch?v=Y-dFY_p-Xv4" },
+      { title: "Doom", youtube: "https://www.youtube.com/watch?v=u2kl0_ZzvDU" },
+      { title: "The Deep End of the Ocean", youtube: "https://www.youtube.com/watch?v=O3gEDCS1O5Q" },
+      { title: "The Station Agent", youtube: "https://www.youtube.com/watch?v=ELw0rYwKOVU" },
+      { title: "Unit 234", youtube: "https://www.youtube.com/watch?v=2FwNLHdYN_s" },
+      { title: "The Thinning", youtube: "https://www.youtube.com/watch?v=6BwlBR9z4-A" },
+      { title: "The Jacket", youtube: "https://www.youtube.com/watch?v=3fPd7_LFOL4" },
+      { title: "The Woman in the Yard", youtube: "https://www.youtube.com/watch?v=1s-Ko4J3mWs" }
+    ];
+
+    function extractVideoId(input) {
+      if (!input) return null;
+      const trimmed = input.trim();
+      
+      if (/^[\w-]{11}$/.test(trimmed)) return trimmed;
+      
+      const patterns = [
+        /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\s?]+)/,
+        /youtube\.com\/watch\?.*v=([^&\s]+)/
+      ];
+      
+      for (const pattern of patterns) {
+        const match = trimmed.match(pattern);
+        if (match) return match[1];
+      }
+      
+      return null;
+    }
+
+    function SetupScreen({ onStart }) {
+      const [jsonInput, setJsonInput] = useState(JSON.stringify(DEFAULT_MOVIES, null, 2));
+      const [error, setError] = useState(null);
+
+      const handleStart = () => {
+        try {
+          const parsed = JSON.parse(jsonInput);
+          if (!Array.isArray(parsed)) throw new Error("Must be an array");
+          if (parsed.length === 0) throw new Error("Need at least one movie");
+          
+          const movies = parsed.map((m, i) => {
+            if (!m.title) throw new Error(`Movie ${i + 1} missing title`);
+            if (!m.youtube) throw new Error(`Movie ${i + 1} missing youtube`);
+            const videoId = extractVideoId(m.youtube);
+            if (!videoId) throw new Error(`Movie ${i + 1} has invalid YouTube URL/ID`);
+            return { ...m, videoId };
+          });
+          
+          setError(null);
+          onStart(movies);
+        } catch (e) {
+          setError(e.message);
+        }
+      };
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-slate-800/80 backdrop-blur rounded-2xl p-6 shadow-2xl border border-purple-500/20">
+            <h1 className="text-3xl font-bold text-white mb-2 text-center">Movie Swipe</h1>
+            <p className="text-purple-300 text-center mb-6">Paste your movie list below, then start swiping</p>
+
+            <textarea
+              value={jsonInput}
+              onChange={(e) => setJsonInput(e.target.value)}
+              className="w-full h-64 bg-slate-900 text-green-400 font-mono text-sm p-4 rounded-lg border border-slate-600 focus:border-purple-500 focus:outline-none resize-none"
+              placeholder='[{"title": "Movie Name", "youtube": "VIDEO_ID"}]'
+            />
+            
+            {error && (
+              <div className="mt-3 p-3 bg-red-500/20 border border-red-500/50 rounded-lg text-red-300 text-sm">
+                {error}
+              </div>
+            )}
+            
+            <button
+              onClick={handleStart}
+              className="w-full mt-4 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-lg rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg"
+            >
+              Start Swiping →
+            </button>
+            
+            <p className="text-slate-400 text-xs mt-4 text-center">
+              Format: JSON array with "title" and "youtube" (URL or video ID)
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    function SwipeScreen({ movies, onComplete }) {
+      const [currentIndex, setCurrentIndex] = useState(0);
+      const [liked, setLiked] = useState([]);
+
+      const currentMovie = movies[currentIndex];
+      const isLastMovie = currentIndex >= movies.length;
+
+      const handleNo = () => setCurrentIndex(i => i + 1);
+
+      const handleYes = () => {
+        setLiked(prev => [...prev, currentMovie]);
+        setCurrentIndex(i => i + 1);
+      };
+
+      const handleWatchNow = () => {
+        window.open(`https://www.youtube.com/watch?v=${currentMovie.videoId}`, '_blank');
+      };
+
+      // Results screen
+      if (isLastMovie) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center p-4">
+            <div className="w-full max-w-lg bg-slate-800/80 backdrop-blur rounded-2xl p-6 shadow-2xl border border-purple-500/20">
+              <h2 className="text-2xl font-bold text-white mb-4 text-center">
+                {liked.length > 0 ? "🎉 Your Shortlist" : "😅 No matches!"}
+              </h2>
+              
+              {liked.length > 0 ? (
+                <div className="space-y-3">
+                  {liked.map((movie, i) => (
+                    <div key={i} className="flex items-center gap-3 bg-slate-700/50 p-3 rounded-lg">
+                      <img 
+                        src={`https://img.youtube.com/vi/${movie.videoId}/mqdefault.jpg`}
+                        alt={movie.title}
+                        className="w-24 h-14 object-cover rounded"
+                      />
+                      <span className="text-white font-medium flex-1">{movie.title}</span>
+                      <a
+                        href={`https://www.youtube.com/watch?v=${movie.videoId}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-purple-400 hover:text-purple-300 text-sm whitespace-nowrap"
+                      >
+                        Watch →
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-slate-400 text-center">Try again with different movies?</p>
+              )}
+              
+              <button
+                onClick={() => onComplete()}
+                className="w-full mt-6 py-3 bg-slate-700 hover:bg-slate-600 text-white rounded-xl transition-all"
+              >
+                ← Start Over
+              </button>
+            </div>
+          </div>
+        );
+      }
+
+      // Swiping screen
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex flex-col items-center justify-center p-4">
+          <div className="w-full max-w-2xl">
+            {/* Progress */}
+            <div className="flex items-center justify-between mb-4 px-2">
+              <span className="text-slate-400 text-sm">{currentIndex + 1} / {movies.length}</span>
+              <span className="text-purple-400 text-sm">{liked.length} liked</span>
+            </div>
+            
+            {/* Movie card */}
+            <div className="bg-slate-800/80 backdrop-blur rounded-2xl overflow-hidden shadow-2xl border border-purple-500/20">
+              <a
+                href={`https://www.youtube.com/watch?v=${currentMovie.videoId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="block relative w-full group"
+                style={{ paddingBottom: '56.25%' }}
+              >
+                <img
+                  src={`https://img.youtube.com/vi/${currentMovie.videoId}/maxresdefault.jpg`}
+                  alt={currentMovie.title}
+                  className="absolute inset-0 w-full h-full object-cover"
+                  onError={(e) => {
+                    e.target.src = `https://img.youtube.com/vi/${currentMovie.videoId}/hqdefault.jpg`;
+                  }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/50 transition-all">
+                  <div className="w-16 h-16 bg-red-600 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </div>
+                </div>
+              </a>
+
+              <div className="p-4">
+                <h2 className="text-xl font-bold text-white text-center">{currentMovie.title}</h2>
+              </div>
+            </div>
+            
+            {/* Action buttons */}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleNo}
+                className="flex-1 py-4 bg-slate-700 hover:bg-slate-600 text-white font-bold text-lg rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] border-2 border-slate-600"
+              >
+                ✕ No
+              </button>
+              <button
+                onClick={handleYes}
+                className="flex-1 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-bold text-lg rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg"
+              >
+                ✓ Yes
+              </button>
+              <button
+                onClick={handleWatchNow}
+                className="flex-1 py-4 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-bold text-lg rounded-xl transition-all transform hover:scale-[1.02] active:scale-[0.98] shadow-lg"
+              >
+                ▶ Watch
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function MovieSwipeApp() {
+      const [screen, setScreen] = useState('setup');
+      const [movies, setMovies] = useState([]);
+
+      const handleStart = (movieList) => {
+        setMovies(movieList);
+        setScreen('swiping');
+      };
+
+      const handleReset = () => {
+        setScreen('setup');
+        setMovies([]);
+      };
+
+      if (screen === 'setup') {
+        return <SetupScreen onStart={handleStart} />;
+      }
+
+      return <SwipeScreen movies={movies} onComplete={handleReset} />;
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<MovieSwipeApp />);
+  </script>
+</body>
+</html>
